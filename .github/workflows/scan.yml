@@ -1,0 +1,39 @@
+name: NSE 5-min scan
+
+on:
+  schedule:
+    # Cron is in UTC. IST = UTC + 5:30. Covers about 9:20 to 15:25 IST, Mon-Fri.
+    - cron: "50,55 3 * * 1-5"
+    - cron: "*/5 4-9 * * 1-5"
+  workflow_dispatch:        # lets you run it manually from the Actions tab
+
+concurrency:
+  group: nse-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Remembers which signals were already sent today (a new cache entry is saved every run)
+      - uses: actions/cache@v4
+        with:
+          path: last_signals.json
+          key: signals-${{ github.run_id }}
+          restore-keys: signals-
+
+      - name: Run scanner
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python nse_intraday_scanner.py --notify --new-only
